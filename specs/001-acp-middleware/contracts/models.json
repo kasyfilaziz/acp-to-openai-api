@@ -1,0 +1,15 @@
+{
+  "method": "GET",
+  "path": "/v1/models",
+  "response_200": {
+    "object": "list",
+    "data": [
+      {
+        "id": "acp-agent-name-version",
+        "object": "model",
+        "created": 123456789,
+        "owned_by": "acp-agent"
+      }
+    ]
+  }
+}

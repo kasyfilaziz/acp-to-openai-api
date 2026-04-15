@@ -1,134 +1,146 @@
 # ACP to OpenAI API Middleware
 
-Middleware that bridges **ACP (Agent Client Protocol)** agents to **OpenAI-compatible API**. Enables tools like Open WebUI or AI coding assistants to use ACP agents as LLM providers.
-
-## Overview
-
-This middleware acts as a translation layer:
-
-```
-OpenAI-compatible Client (Open WebUI, etc.)
-         │
-         ▼
-┌────────────────────────┐
-│  HTTP Server           │  ← Fastify (port 8080)
-│  /v1/chat/completions  │
-│  /v1/models            │
-└──────────┬─────────────┘
-           │ JSON-RPC (stdio)
-           ▼
-┌────────────────────────┐
-│  ACP Agent             │  ← @agentclientprotocol/sdk
-│  (subprocess)         │
-└────────────────────────┘
-```
+Bridge **ACP (Agent Client Protocol)** agents to **OpenAI-compatible API**. Enables tools like Open WebUI or AI coding assistants to use ACP agents as LLM providers.
 
 ## Features
 
-- **OpenAI Compatible API**: Works with any OpenAI API client
-- **Streaming Support**: Full SSE streaming for real-time responses
-- **Session Management**: Per-request session creation
-- **Tool Auto-Approval**: Automatically approves tool permissions
-- **Configurable**: Agent command and arguments via config.yaml
+- **OpenAI-Compatible API**: Works with any OpenAI client
+- **Session Management**: Reuse sessions via `session_id`
+- **Streaming Support**: SSE streaming for real-time responses
+- **Tool Auto-Approval**: Automatically approve tool permissions with logging
+- **Configurable**: YAML config + environment variable overrides
 
-## Requirements
+## Prerequisites
 
 - Node.js 18+
-- TypeScript
-- An ACP-compatible agent (e.g., Claude Code, Gemini CLI, or similar)
+- An ACP-compatible agent installed (e.g., `gemini-cli`)
+- User logged in to the agent CLI
 
 ## Quick Start
 
-### 1. Install Dependencies
+### 1. Install
 
 ```bash
 npm install
+npm run build
 ```
 
-### 2. Configure Agent
+### 2. Configure
 
-Edit `config.yaml`:
+Create `config.yaml`:
 
 ```yaml
 agent:
-  command: "claude"        # or path to your ACP agent
-  args: ["--print"]        # agent-specific arguments
-  cwd: "/tmp"              # working directory
+  command: "gemini"
+  args:
+    - "--stdio"
+  cwd: "."
 
 server:
   host: "0.0.0.0"
   port: 8080
 ```
 
+Or use environment variables:
+
+```bash
+export AGENT_COMMAND=gemini
+export AGENT_ARGS=--stdio
+export PORT=8080
+```
+
 ### 3. Run
 
 ```bash
-# Development
-npm run dev
-
-# Production
-npm run build
 npm start
+```
+
+### 4. Test
+
+**Non-streaming chat:**
+```bash
+curl http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemini",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
+```
+
+**Streaming chat:**
+```bash
+curl http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemini",
+    "messages": [{"role": "user", "content": "Hello!"}],
+    "stream": true
+  }'
+```
+
+**Session reuse:**
+```bash
+# Use session_id from previous response
+curl http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemini",
+    "messages": [{"role": "user", "content": "Continue our chat"}],
+    "session_id": "YOUR_SESSION_ID"
+  }'
+```
+
+**List models:**
+```bash
+curl http://localhost:8080/v1/models
+```
+
+**Health check:**
+```bash
+curl http://localhost:8080/health
+```
+
+## Docker
+
+```bash
+docker build -t acp-middleware .
+docker run -p 8080:8080 acp-middleware
 ```
 
 ## API Endpoints
 
-### POST /v1/chat/completions
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/v1/chat/completions` | Chat completions |
+| GET | `/v1/models` | List models |
+| GET | `/health` | Health check |
 
-Send chat messages to the ACP agent.
+## Error Responses
 
-**Request:**
+Errors follow OpenAI format:
+
 ```json
 {
-  "model": "any-model",
-  "messages": [
-    {"role": "user", "content": "Hello!"}
-  ],
-  "stream": false
+  "error": {
+    "message": "Error message",
+    "type": "invalid_request_error",
+    "code": "error_code"
+  }
 }
 ```
 
-**Response:**
-```json
-{
-  "id": "chatcmpl-xxx",
-  "object": "chat.completion",
-  "created": 1234567890,
-  "model": "any-model",
-  "choices": [
-    {
-      "index": 0,
-      "message": {
-        "role": "assistant",
-        "content": "Hello! How can I help?"
-      },
-      "finish_reason": "stop"
-    }
-  ]
-}
-```
+| HTTP Code | Error Type | Description |
+|-----------|------------|-------------|
+| 400 | invalid_request_error | Missing required fields |
+| 404 | invalid_request_error | Session not found |
+| 409 | invalid_request_error | Session is busy |
+| 502 | api_error | Agent protocol error |
+| 503 | api_error | Agent not ready |
 
-### GET /v1/models
+## Logging
 
-List available models (returns agent info).
-
-## Configuration
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `agent.command` | Agent executable command | Required |
-| `agent.args` | Agent command arguments | `[]` |
-| `agent.cwd` | Working directory | `"/tmp"` |
-| `server.host` | Server host | `"0.0.0.0"` |
-| `server.port` | Server port | `8080` |
-
-## Documentation
-
-- **ACP Protocol**: https://agentclientprotocol.com/protocol/overview
-- **Protocol Docs**: `.docs/acp/`
-- **SDK Reference**: `.docs/sdk.md`
-- **OpenAI API**: `.docs/openapi.with-code-samples.yml`
+Logs are written to `/tmp/acp-middleware/acp-middleware.log`. Sensitive data is automatically redacted.
 
 ## License
 
-Apache 2.0
+ISC

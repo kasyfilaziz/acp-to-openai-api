@@ -1,0 +1,16 @@
+agent:
+  command: "gemini"
+  args:
+    - "--stdio"
+  cwd: "."
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+
+# Environment variables can override:
+# AGENT_COMMAND: "gemini"           # Agent command
+# AGENT_ARGS: "--stdio"             # Agent arguments (space-separated)
+# PORT: 8080                        # Server port
+# HOST: "0.0.0.0"                  # Server host
+# LOG_DIR: "/tmp/acp-middleware"   # Log directory
