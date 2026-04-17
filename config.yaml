@@ -1,12 +1,15 @@
 agent:
-  command: "gemini"
-  args:
-    - "--stdio"
-  cwd: "."
+    command: "gemini"
+    args:
+        - "--acp"
+        - "--yolo"
+        - "--model"
+        - "gemini-3-flash-preview"
+    cwd: "."
 
 server:
-  host: "0.0.0.0"
-  port: 8080
+    host: "0.0.0.0"
+    port: 8080
 
 # Environment variables can override:
 # AGENT_COMMAND: "gemini"           # Agent command

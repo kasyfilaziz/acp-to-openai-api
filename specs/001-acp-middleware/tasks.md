@@ -117,7 +117,7 @@ description: "Task list for ACP to OpenAI API Middleware feature implementation"
 - [x] T027 [P] Implement graceful shutdown handling for the agent subprocess in src/index.ts
 - [x] T028 [P] Add Dockerfile for easy deployment per plan.md
 - [x] T029 Complete README.md with configuration and testing guide from quickstart.md
-- [ ] T030 Final end-to-end manual validation with Gemini CLI as the agent
+- [x] T030 Final end-to-end manual validation with Gemini CLI as the agent
 
 ---
 

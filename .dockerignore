@@ -15,4 +15,5 @@ vitest.config.ts
 .specify/
 specs/
 .dockerignore
-Dockerfile
+Dockerfile*
+coverage/

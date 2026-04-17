@@ -45,7 +45,7 @@ Or use environment variables:
 
 ```bash
 export AGENT_COMMAND=gemini
-export AGENT_ARGS=--stdio
+export AGENT_ARGS=--acp
 export PORT=8080
 ```
 
