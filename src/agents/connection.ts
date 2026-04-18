@@ -147,11 +147,26 @@ export class AgentConnection {
         this.client = new ACPClient();
         this.connection = new ClientSideConnection(() => this.client as Client, stream);
 
+        this.process.stderr?.on('data', (data) => {
+          logger.warn(`Agent stderr: ${data.toString()}`);
+        });
+
+        const timeout = setTimeout(() => {
+          if (this.status !== 'ready') {
+            const err = new Error('Agent initialization timed out after 30s');
+            logger.error(err.message);
+            this.status = 'error';
+            reject(err);
+          }
+        }, 30000);
+
         this.client.getInitPromise().then((info) => {
+          clearTimeout(timeout);
           this.agentInfo = info as AgentInfo;
           this.status = 'ready';
           resolve();
         }).catch((err) => {
+          clearTimeout(timeout);
           this.status = 'error';
           reject(err);
         });
@@ -215,15 +230,16 @@ export class AgentConnection {
     return response.sessionId;
   }
 
-  async prompt(sessionId: string, messages: ContentBlock[]): Promise<void> {
+  async prompt(sessionId: string, messages: ContentBlock[]): Promise<StopReason> {
     if (!this.connection || this.status !== 'ready') {
       throw new Error('Agent connection not ready');
     }
 
-    await this.connection.prompt({
+    const response = await this.connection.prompt({
       sessionId,
       prompt: messages
     });
+    return response.stopReason;
   }
 
   onSessionUpdate(sessionId: string, handler: ConnectionEventHandler): void {
@@ -257,9 +273,6 @@ export class AgentConnection {
   }
 
   disconnect(): void {
-    if (this.connection) {
-      (this.connection as any).close();
-    }
     if (this.process) {
       this.process.kill();
     }

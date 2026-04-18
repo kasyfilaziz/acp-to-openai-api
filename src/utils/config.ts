@@ -3,7 +3,9 @@ import path from 'path';
 import yaml from 'js-yaml';
 import dotenv from 'dotenv';
 
+console.log('Loading environment variables...');
 dotenv.config();
+console.log('Environment variables loaded.');
 
 export interface AgentConfig {
   command: string;
@@ -36,20 +38,26 @@ const DEFAULT_CONFIG: Config = {
 };
 
 export function loadConfig(configPath?: string): Config {
+  console.log('Loading config...');
   const configFilePath = configPath || path.join(process.cwd(), 'config.yaml');
+  console.log(`Config path: ${configFilePath}`);
   
   let fileConfig: Partial<Config> = {};
   
   if (fs.existsSync(configFilePath)) {
     try {
+      console.log('Reading config file...');
       const fileContent = fs.readFileSync(configFilePath, 'utf-8');
       fileConfig = yaml.load(fileContent) as Partial<Config> || {};
+      console.log('Config file parsed.');
     } catch (err) {
       console.warn(`Failed to load config from ${configFilePath}: ${err}`);
     }
+  } else {
+    console.log('Config file not found, using defaults.');
   }
   
-  return {
+  const finalConfig = {
     agent: {
       command: process.env.AGENT_COMMAND || fileConfig.agent?.command || DEFAULT_CONFIG.agent.command,
       args: process.env.AGENT_ARGS 
@@ -63,6 +71,8 @@ export function loadConfig(configPath?: string): Config {
     },
     logDir: process.env.LOG_DIR || fileConfig.logDir || DEFAULT_CONFIG.logDir
   };
+  console.log('Final config:', JSON.stringify(finalConfig));
+  return finalConfig;
 }
 
 export const config = loadConfig();

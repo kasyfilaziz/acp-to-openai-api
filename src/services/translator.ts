@@ -46,6 +46,11 @@ export function translateMessagesToContentBlocks(
   const blocks: ContentBlock[] = [];
   
   for (const msg of messages) {
+    // Skip system prompts as the ACP agent handles its own system context and tools
+    if (msg.role === 'system') {
+      continue;
+    }
+
     const content = msg.content;
     
     if (typeof content === 'string' && content.trim()) {

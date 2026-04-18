@@ -20,10 +20,12 @@ function writeLog(level: string, message: string, meta?: Record<string, unknown>
   ensureLogDir();
   const formatted = formatMessage(level, message, meta);
   
+  // Print full metadata to console for verbose debugging
+  const consoleMeta = meta ? ` | ${JSON.stringify(meta, null, 2)}` : '';
   if (level === 'error') {
-    console.error(formatted.trim());
+    console.error(`[${level.toUpperCase()}] ${message}${consoleMeta}`);
   } else {
-    console.log(formatted.trim());
+    console.log(`[${level.toUpperCase()}] ${message}${consoleMeta}`);
   }
   
   try {

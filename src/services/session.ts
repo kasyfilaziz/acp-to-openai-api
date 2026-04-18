@@ -1,14 +1,20 @@
 import type { ACPSessionId, SessionState } from '../agents/types.js';
 import logger from '../utils/logger.js';
+import fs from 'node:fs';
 
 export interface SessionRegistry {
   create(acpSessionId: string): string;
   get(internalSessionId: string): SessionState | undefined;
   getByAcpId(acpSessionId: string): SessionState | undefined;
+  getInternalIdByAcpId(acpSessionId: string): string | undefined;
   lock(internalSessionId: string): boolean;
   unlock(internalSessionId: string): void;
   delete(internalSessionId: string): void;
+  getPersistentSessionId(): string | undefined;
+  setPersistentSessionId(acpSessionId: string): void;
 }
+
+const PERSISTENT_SESSION_FILE = '.acp_session';
 
 class InMemorySessionRegistry implements SessionRegistry {
   private sessions: Map<string, SessionState> = new Map();
@@ -46,6 +52,10 @@ class InMemorySessionRegistry implements SessionRegistry {
     return undefined;
   }
 
+  getInternalIdByAcpId(acpSessionId: ACPSessionId): string | undefined {
+    return this.acpToInternal.get(acpSessionId);
+  }
+
   lock(internalSessionId: string): boolean {
     const session = this.sessions.get(internalSessionId);
     if (!session) {
@@ -76,6 +86,26 @@ class InMemorySessionRegistry implements SessionRegistry {
       this.acpToInternal.delete(session.sessionId);
       this.sessions.delete(internalSessionId);
       logger.debug('Session deleted', { internalSessionId });
+    }
+  }
+
+  getPersistentSessionId(): string | undefined {
+    try {
+      if (fs.existsSync(PERSISTENT_SESSION_FILE)) {
+        return fs.readFileSync(PERSISTENT_SESSION_FILE, 'utf-8').trim();
+      }
+    } catch (err) {
+      logger.warn('Failed to read persistent session file', { error: String(err) });
+    }
+    return undefined;
+  }
+
+  setPersistentSessionId(acpSessionId: string): void {
+    try {
+      fs.writeFileSync(PERSISTENT_SESSION_FILE, acpSessionId, 'utf-8');
+      logger.info('Persistent session ID saved', { acpSessionId });
+    } catch (err) {
+      logger.warn('Failed to write persistent session file', { error: String(err) });
     }
   }
 }

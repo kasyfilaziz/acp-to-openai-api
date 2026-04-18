@@ -10,6 +10,51 @@ Bridge **ACP (Agent Client Protocol)** agents to **OpenAI-compatible API**. Enab
 - **Tool Auto-Approval**: Automatically approve tool permissions with logging
 - **Configurable**: YAML config + environment variable overrides
 
+## Architecture
+
+### Technical Sequence Diagram
+
+The following diagram illustrates the internal function calls and message flow across the middleware components.
+
+```mermaid
+sequenceDiagram
+    participant C as OpenAI Client
+    participant API as src/api/completions.ts<br/>(handleChatCompletion)
+    participant SR as src/services/session.ts<br/>(sessionRegistry)
+    participant TR as src/services/translator.ts<br/>(translators)
+    participant AG as src/agents/connection.ts<br/>(agentConnection)
+    participant Agent as ACP Agent (Subprocess)
+
+    C->>API: POST /v1/chat/completions
+    API->>SR: getPersistentSessionId()
+    API->>SR: lock(sessionId)
+    API->>TR: translateMessagesToContentBlocks(messages)
+    Note right of TR: Filters out 'system' roles
+    
+    API->>AG: onSessionUpdate(sessionId, handler)
+    API->>AG: prompt(sessionId, blocks)
+    AG->>Agent: ACP: session/prompt
+    
+    loop Real-time Updates (Notifications)
+        Agent-->>AG: ACP: session/update (thought/chunk)
+        AG-->>API: execute handler(update)
+        API->>C: SSE Chunk (reasoning_content / content)
+    end
+
+    Agent-->>AG: ACP: session/prompt response (stopReason)
+    AG-->>API: returns stopReason
+    
+    API->>SR: unlock(sessionId)
+    API->>AG: removeSessionHandler(sessionId)
+    
+    ALT if stream: true
+        API->>C: data: [DONE]
+    ELSE if stream: false
+        API->>TR: translateResponseToOpenAI(...)
+        API->>C: ChatCompletion JSON
+    END
+```
+
 ## Prerequisites
 
 - Node.js 18+
