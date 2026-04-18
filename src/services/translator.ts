@@ -43,25 +43,28 @@ export interface ChatCompletionChunk {
 export function translateMessagesToContentBlocks(
   messages: { role: string; content: string | null }[]
 ): ContentBlock[] {
-  const blocks: ContentBlock[] = [];
+  // Find the last message with the 'user' role
+  // We only send the last message because the ACP agent is stateful and maintains its own history.
+  const userMessages = messages.filter(msg => msg.role === 'user');
+  const lastUserMsg = userMessages[userMessages.length - 1];
   
-  for (const msg of messages) {
-    // Skip system prompts as the ACP agent handles its own system context and tools
-    if (msg.role === 'system') {
-      continue;
-    }
-
-    const content = msg.content;
-    
-    if (typeof content === 'string' && content.trim()) {
-      blocks.push({
-        type: 'text',
-        text: content
-      });
-    }
+  if (lastUserMsg && typeof lastUserMsg.content === 'string' && lastUserMsg.content.trim()) {
+    return [{
+      type: 'text',
+      text: lastUserMsg.content
+    }];
   }
   
-  return blocks.length > 0 ? blocks : [{ type: 'text', text: '' }];
+  // Fallback to the very last message if no user message is found, or an empty block
+  const lastMsg = messages[messages.length - 1];
+  if (lastMsg && typeof lastMsg.content === 'string' && lastMsg.content.trim()) {
+     return [{
+      type: 'text',
+      text: lastMsg.content
+    }];
+  }
+
+  return [{ type: 'text', text: '' }];
 }
 
 export function translateContentBlockToText(block: ContentBlock): string {
