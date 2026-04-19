@@ -61,24 +61,55 @@ sequenceDiagram
 - An ACP-compatible agent installed (e.g., `gemini-cli`)
 - User logged in to the agent CLI
 
-## Quick Start
+## Installation
 
-### 1. Install
+### Global Installation (Recommended)
+You can install this middleware as a global CLI tool directly from GitHub:
 
 ```bash
-npm install
-npm run build
+npm install -g tsc
+npm install -g git+https://github.com/kasyfilaziz/acp-to-openai-api.git
 ```
 
-### 2. Configure
+Once installed, you can run the bridge from anywhere using:
+```bash
+acp-to-openai
+```
 
-Create `config.yaml`:
+### Local Development
+```bash
+git clone https://github.com/kasyfilaziz/acp-to-openai-api.git
+cd acp-to-openai-api
+npm install
+npm run build
+npm start
+```
 
+## Configuration
+
+The middleware uses a hierarchical configuration system. Values are loaded in this order (highest priority first):
+1. **Environment Variables**
+2. **`config.yaml`** (checked in the current working directory)
+3. **`.env` file** (checked in the current working directory)
+4. **Internal Defaults**
+
+### Environment Variables
+| Variable | Description | Default |
+| :--- | :--- | :--- |
+| `AGENT_COMMAND` | The command to launch the ACP agent | `gemini` |
+| `AGENT_ARGS` | Space-separated arguments for the agent | `--stdio` |
+| `PORT` | The port for the OpenAI-compatible server | `8080` |
+| `HOST` | The host address to bind to | `0.0.0.0` |
+| `LOG_DIR` | Directory for log files | `/tmp/acp-middleware` |
+
+### YAML Configuration (`config.yaml`)
+Create this file in your project root or current folder:
 ```yaml
 agent:
   command: "gemini"
   args:
-    - "--stdio"
+    - "--acp"
+    - "--yolo"
   cwd: "."
 
 server:
@@ -86,21 +117,9 @@ server:
   port: 8080
 ```
 
-Or use environment variables:
+## Test
 
-```bash
-export AGENT_COMMAND=gemini
-export AGENT_ARGS=--acp
-export PORT=8080
-```
-
-### 3. Run
-
-```bash
-npm start
-```
-
-### 4. Test
+Once the server is running, you can test it using standard `curl` commands.
 
 **Non-streaming chat:**
 ```bash
@@ -112,28 +131,20 @@ curl http://localhost:8080/v1/chat/completions \
   }'
 ```
 
-**Streaming chat:**
+**Streaming chat (with reasoning):**
 ```bash
 curl http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gemini",
-    "messages": [{"role": "user", "content": "Hello!"}],
+    "messages": [{"role": "user", "content": "Think step-by-step: how many r are in strawberry?"}],
     "stream": true
   }'
 ```
 
-**Session reuse:**
-```bash
-# Use session_id from previous response
-curl http://localhost:8080/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gemini",
-    "messages": [{"role": "user", "content": "Continue our chat"}],
-    "session_id": "YOUR_SESSION_ID"
-  }'
-```
+**Persistent Session:**
+The tool automatically creates a `.acp_session` file in your current folder. Any request made without an explicit `session_id` will reuse this session, preserving your conversation history.
+
 
 **List models:**
 ```bash
