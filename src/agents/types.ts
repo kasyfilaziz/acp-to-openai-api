@@ -1,4 +1,4 @@
-import type { ContentBlock, SessionNotification } from '@agentclientprotocol/sdk';
+import type { ContentBlock } from '@agentclientprotocol/sdk';
 
 export type ACPSessionId = string;
 export type ACPToolCallId = string;
@@ -22,6 +22,9 @@ export interface SessionUpdateChunk {
   content?: string;
   toolCallId?: ACPToolCallId;
   toolName?: string;
+  toolTitle?: string;
   arguments?: Record<string, unknown>;
   stopReason?: string;
+  status?: string;
+  output?: any;
 }

@@ -2,7 +2,7 @@ import type { ContentBlock } from '@agentclientprotocol/sdk';
 
 export interface OpenAIMessage {
   role: 'user' | 'assistant' | 'system' | 'tool';
-  content: string | null;
+  content: string | any[] | Record<string, any> | null;
 }
 
 export interface OpenAIChoice {
@@ -10,6 +10,8 @@ export interface OpenAIChoice {
   message: {
     role: string;
     content: string;
+    reasoning_content?: string;
+    tool_calls?: any[];
   };
   finish_reason: string | null;
 }
@@ -19,6 +21,8 @@ export interface OpenAIChunkChoice {
   delta: {
     role?: string;
     content?: string;
+    reasoning_content?: string;
+    tool_calls?: any[];
   };
   finish_reason: string | null;
 }
@@ -41,27 +45,69 @@ export interface ChatCompletionChunk {
 }
 
 export function translateMessagesToContentBlocks(
-  messages: { role: string; content: string | null }[]
+  messages: { role: string; content: string | any[] | Record<string, any> | null }[]
 ): ContentBlock[] {
   // Find the last message with the 'user' role
   // We only send the last message because the ACP agent is stateful and maintains its own history.
   const userMessages = messages.filter(msg => msg.role === 'user');
   const lastUserMsg = userMessages[userMessages.length - 1];
-  
-  if (lastUserMsg && typeof lastUserMsg.content === 'string' && lastUserMsg.content.trim()) {
-    return [{
-      type: 'text',
-      text: lastUserMsg.content
-    }];
+
+  const extractText = (content: any): string => {
+    if (typeof content === 'string') return content;
+    if (!content) return '';
+
+    // Handle array of blocks
+    if (Array.isArray(content)) {
+      return content
+        .map(block => (block.type === 'text' ? block.text : ''))
+        .filter(Boolean)
+        .join('\n');
+    }
+
+    // Handle object with numeric keys (sometimes arrays are serialized this way)
+    if (typeof content === 'object') {
+      const keys = Object.keys(content).sort((a, b) => Number(a) - Number(b));
+      // Check if it's indeed numeric keys
+      const allNumeric = keys.every(k => !isNaN(Number(k)));
+      if (allNumeric && keys.length > 0) {
+        return keys
+          .map(k => {
+             const block = content[k];
+             return block.type === 'text' ? block.text : '';
+          })
+          .filter(Boolean)
+          .join('\n');
+      }
+
+      // Handle single block as object
+      if (content.type === 'text' && content.text) {
+        return content.text;
+      }
+    }
+
+    return '';
+  };
+
+  if (lastUserMsg) {
+    const textContent = extractText(lastUserMsg.content);
+    if (textContent.trim()) {
+      return [{
+        type: 'text',
+        text: textContent
+      }];
+    }
   }
-  
+
   // Fallback to the very last message if no user message is found, or an empty block
   const lastMsg = messages[messages.length - 1];
-  if (lastMsg && typeof lastMsg.content === 'string' && lastMsg.content.trim()) {
-     return [{
-      type: 'text',
-      text: lastMsg.content
-    }];
+  if (lastMsg) {
+    const textContent = extractText(lastMsg.content);
+    if (textContent.trim()) {
+       return [{
+        type: 'text',
+        text: textContent
+      }];
+    }
   }
 
   return [{ type: 'text', text: '' }];

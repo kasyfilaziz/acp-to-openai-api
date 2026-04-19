@@ -13,7 +13,7 @@ import { handleModels } from './api/models.js';
 console.log('Imported handleModels');
 import { createErrorResponse } from './services/translator.js';
 console.log('Imported createErrorResponse');
-import type { OpenAIError } from './api/types';
+import type { OpenAIError } from './api/types.js';
 
 console.log('Initializing Fastify...');
 const fastify = Fastify({

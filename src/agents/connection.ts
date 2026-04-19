@@ -36,29 +36,60 @@ class ACPClient implements Client {
 
   async sessionUpdate(params: SessionNotification): Promise<void> {
     const payload = params as unknown as SessionUpdatePayload;
+    logger.debug('Received ACP sessionUpdate', { payload });
     const sessionId = payload.sessionId || 'default';
     const handler = this.updateHandlers.get(sessionId);
     
+    if (!handler) {
+      logger.debug('No handler found for sessionId', { 
+        sessionId, 
+        registeredKeys: Array.from(this.updateHandlers.keys()) 
+      });
+    }
+
     if (handler) {
       const update = payload.update;
+      logger.debug('Dispatching update to handler', { sessionId, type: update.sessionUpdate });
       
       if (update.sessionUpdate === 'agent_message_chunk' && update.content) {
         if (update.content.type === 'text' && update.content.text) {
           handler({ type: 'agent_message_chunk', content: update.content.text });
         }
-      } else if (update.sessionUpdate === 'thought' && update.content) {
-        if (update.content.type === 'text' && update.content.text) {
-          handler({ type: 'thought', content: update.content.text });
+      } else if ((update.sessionUpdate === 'thought' || update.sessionUpdate === 'plan' || update.sessionUpdate === 'agent_thought_chunk') && update.content) {
+        const content = update.content as any;
+        const text = content.text || (typeof content === 'string' ? content : '');
+        if (text) {
+          handler({ type: 'thought', content: text });
         }
+      } else if (update.sessionUpdate === 'plan' && Array.isArray(update.entries)) {
+        // Handle 'plan' with entries (structured reasoning)
+        const planText = update.entries.map((e: any) => `- ${e.content}`).join('\n');
+        handler({ type: 'thought', content: planText + '\n' });
       } else if (update.sessionUpdate === 'tool_call') {
+        const toolName = (update.toolCallId as string || '').split('-')[0] || (update.title as string) || 'unknown_tool';
+        const args = (update.rawInput || update.locations || { target: update.title }) as Record<string, unknown>;
+        
         handler({ 
           type: 'tool_call', 
           toolCallId: update.toolCallId as string,
-          toolName: update.title as string,
-          arguments: update.rawInput as Record<string, unknown>
+          toolName: toolName,
+          toolTitle: update.title as string,
+          arguments: args,
+          status: update.status as string
+        });
+      } else if (update.sessionUpdate === 'tool_call_update') {
+        const toolName = (update.toolCallId as string || '').split('-')[0] || (update.title as string) || 'unknown_tool';
+        handler({
+          type: 'tool_call_update',
+          toolCallId: update.toolCallId as string,
+          toolName: toolName,
+          status: update.status as string,
+          output: update.rawOutput || update.content || 'Success'
         });
       } else if (update.stopReason) {
         handler({ type: 'end_turn', stopReason: update.stopReason });
+      } else {
+        logger.debug('Received unknown ACP sessionUpdate type', { type: update.sessionUpdate, update });
       }
     }
   }
@@ -89,10 +120,12 @@ class ACPClient implements Client {
   }
 
   onSessionUpdate(sessionId: string, handler: ConnectionEventHandler): void {
+    logger.debug('Registering session handler', { sessionId });
     this.updateHandlers.set(sessionId, handler);
   }
 
   removeSessionHandler(sessionId: string): void {
+    logger.debug('Removing session handler', { sessionId });
     this.updateHandlers.delete(sessionId);
   }
 

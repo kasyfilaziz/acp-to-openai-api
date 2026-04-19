@@ -1,6 +1,6 @@
 export interface ChatRequestMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string;
+  content: string | any[] | Record<string, any> | null;
   name?: string;
   tool_call_id?: string;
 }

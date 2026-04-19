@@ -117,27 +117,56 @@ export async function handleChatCompletion(
 
         let finished = false;
         let chunkCount = 0;
+        let toolCallSent = false;
+        let contentSent = false;
+        let nextToolCallIndex = 0;
 
         agentConnection.onSessionUpdate(acpSessionId, (update) => {
           sendHeaders();
           
-          if (update.type === 'agent_message_chunk' || update.type === 'thought' || update.type === 'tool_call') {
+          if (update.type === 'agent_message_chunk' || update.type === 'thought' || update.type === 'tool_call' || update.type === 'tool_call_update') {
             const delta: any = {};
+            
             if (update.type === 'agent_message_chunk' && update.content) {
               delta.content = update.content;
+              contentSent = true;
             } else if (update.type === 'thought' && update.content) {
-              delta.reasoning_content = update.content;
-            } else if (update.type === 'tool_call' && update.toolCallId) {
-              delta.tool_calls = [{
-                index: 0,
-                id: update.toolCallId,
-                type: 'function',
-                function: {
-                  name: update.toolName || '',
-                  arguments: update.arguments ? JSON.stringify(update.arguments) : '{}'
+              // If we already started sending actual response content, 
+              // we append thoughts to content to avoid UI interleaving errors.
+              if (contentSent) {
+                delta.content = `\n> 💭 **Thought**: ${update.content}\n`;
+              } else {
+                delta.reasoning_content = update.content;
+              }
+            } else if (update.type === 'tool_call' && update.arguments) {
+              const argStr = JSON.stringify(update.arguments);
+              const toolInfo = `\n> 🛠️ **Internal Tool Call**: I am executing \`${update.toolName}\` with parameters: \`${argStr}\`\n`;
+              
+              if (contentSent) {
+                delta.content = toolInfo;
+              } else {
+                delta.reasoning_content = toolInfo;
+              }
+            } else if (update.type === 'tool_call_update') {
+              let toolResult = '';
+              if (update.status === 'completed') {
+                const outputStr = typeof update.output === 'string' ? update.output : JSON.stringify(update.output || '');
+                const displayOut = outputStr ? `\n> \`\`\`\n> ${outputStr.length > 500 ? outputStr.substring(0, 500) + '... (truncated)' : outputStr}\n> \`\`\`` : '';
+                toolResult = `\n> ✅ **Result**: The tool \`${update.toolName}\` finished processing successfully.${displayOut}\n`;
+              } else if (update.status === 'failed') {
+                toolResult = `\n> ❌ **Error**: The tool \`${update.toolName}\` encountered an issue during execution.\n`;
+              }
+
+              if (toolResult) {
+                if (contentSent) {
+                  delta.content = toolResult;
+                } else {
+                  delta.reasoning_content = toolResult;
                 }
-              }];
+              }
             }
+
+            if (Object.keys(delta).length === 0) return;
 
             const chunk = {
               id: responseId,
@@ -156,7 +185,13 @@ export async function handleChatCompletion(
           } else if (update.type === 'end_turn') {
             if (finished) return;
             finished = true;
-            let stopReason = update.stopReason === 'max_tokens' ? 'length' : 'stop';
+            
+            let stopReason = 'stop';
+            if (update.stopReason === 'max_tokens') {
+              stopReason = 'length';
+            } else if (toolCallSent) {
+              stopReason = 'tool_calls';
+            }
             
             const finalChunk: ChatChunk = {
               id: responseId,
@@ -176,7 +211,7 @@ export async function handleChatCompletion(
             
             sessionRegistry.unlock(internalSessionId);
             agentConnection.removeSessionHandler(acpSessionId);
-            logger.info('Chat completion stream finished via end_turn', { id: responseId, session_id: acpSessionId, chunkCount });
+            logger.info('Chat completion stream finished via end_turn', { id: responseId, session_id: acpSessionId, chunkCount, stopReason });
           }
         });
 
@@ -187,6 +222,11 @@ export async function handleChatCompletion(
           if (!finished) {
             logger.info('Prompt finished but turn not ended via notification, closing stream', { id: responseId, session_id: acpSessionId, stopReason });
             
+            let finalStopReason = (stopReason === 'max_tokens' ? 'length' : 'stop');
+            if (toolCallSent) {
+              finalStopReason = 'tool_calls';
+            }
+
             const finalChunk: ChatChunk = {
               id: responseId,
               object: 'chat.completion.chunk',
@@ -195,7 +235,7 @@ export async function handleChatCompletion(
               choices: [{
                 index: 0,
                 delta: {},
-                finish_reason: (stopReason === 'max_tokens' ? 'length' : 'stop') as any
+                finish_reason: finalStopReason as any
               }]
             };
             
@@ -239,19 +279,23 @@ export async function handleChatCompletion(
         let stopReasonStr = 'stop';
 
         const handler = (update: any) => {
+          logger.debug('Handler received update', { type: update.type, hasContent: !!update.content });
           if (update.type === 'agent_message_chunk' && update.content) {
             fullContent += update.content;
           } else if (update.type === 'thought' && update.content) {
+            logger.debug('Accumulating reasoning content', { length: update.content.length });
             reasoningContent += update.content;
-          } else if (update.type === 'tool_call' && update.toolCallId) {
-            toolCalls.push({
-              id: update.toolCallId,
-              type: 'function',
-              function: {
-                name: update.toolName || '',
-                arguments: update.arguments ? JSON.stringify(update.arguments) : '{}'
-              }
-            });
+          } else if (update.type === 'tool_call' && update.arguments) {
+            const argStr = JSON.stringify(update.arguments);
+            reasoningContent += `\n> 🛠️ **Internal Tool Call**: I am executing \`${update.toolName}\` with parameters: \`${argStr}\`\n`;
+          } else if (update.type === 'tool_call_update') {
+            if (update.status === 'completed') {
+              const outputStr = typeof update.output === 'string' ? update.output : JSON.stringify(update.output || '');
+              const displayOut = outputStr ? `\n> \`\`\`\n> ${outputStr.length > 500 ? outputStr.substring(0, 500) + '... (truncated)' : outputStr}\n> \`\`\`` : '';
+              reasoningContent += `\n> ✅ **Result**: The tool \`${update.toolName}\` finished processing successfully.${displayOut}\n`;
+            } else if (update.status === 'failed') {
+              reasoningContent += `\n> ❌ **Error**: The tool \`${update.toolName}\` encountered an issue during execution.\n`;
+            }
           } else if (update.type === 'end_turn') {
             stopReasonStr = update.stopReason || 'stop';
             finished = true;
@@ -264,6 +308,12 @@ export async function handleChatCompletion(
           const finalStopReason = await agentConnection.prompt(acpSessionId, contentBlocks);
           const finalReason = finished ? stopReasonStr : finalStopReason;
           
+          // If no content but reasoning exists, or if we have interleaved content,
+          // we ensure the final response is informative.
+          if (!fullContent && reasoningContent) {
+            fullContent = "Task processed.";
+          }
+
           const response = translateResponseToOpenAI(
             fullContent,
             finalReason,
