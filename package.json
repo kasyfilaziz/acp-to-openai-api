@@ -4,7 +4,11 @@
   "description": "Middleware that bridges ACP (Agent Client Protocol) agents to OpenAI-compatible API",
   "main": "dist/index.js",
   "type": "module",
+  "bin": {
+    "acp-to-openai": "./dist/index.js"
+  },
   "scripts": {
+    "prepare": "npm run build",
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",

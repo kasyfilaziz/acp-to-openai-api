@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 console.log('Starting index.ts...');
 import Fastify from 'fastify';
 console.log('Imported Fastify');
