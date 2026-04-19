@@ -1,50 +1,92 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+# ACP to OpenAI API Middleware Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Protocol Fidelity
+The middleware MUST accurately translate between OpenAI API format and ACP protocol without loss or corruption of messages. All ContentBlock types MUST be supported. Session state MUST be preserved correctly across requests.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+**Rationale**: Users expect seamless integration - the middleware should be transparent to both the OpenAI client and the ACP agent.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### II. Session Control via API
+Session creation and management MUST be controllable through chat request parameters. Clients MUST be able to specify `session_id` to reuse existing sessions or create new sessions on-demand.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+**Rationale**: Full control over agent sessions enables: conversation continuity, parallel conversations, session debugging, and resource management.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### III. Security by Design
+The middleware MUST NOT expose sensitive data through logs or error messages. API keys, tokens, and session IDs MUST be redacted in logs. Error responses MUST follow OpenAI format without leaking internal implementation details.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+**Rationale**: Security vulnerabilities often come from improper logging. Following OpenAI error format ensures compatibility with existing clients.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### IV. Observability
+All requests to/from the ACP agent MUST be logged with timestamps, direction indicators, and sanitized content. Logs MUST be written to both console (for real-time debugging) and file (for persistent auditing).
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+**Rationale**: Troubleshooting ACP integration requires visibility into message flow. File logs enable post-incident analysis.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### V. Graceful Degradation
+The middleware MUST handle agent failures gracefully: connection timeouts, protocol errors, and unexpected messages must not crash the server. All errors MUST return valid OpenAI-compatible error responses.
+
+**Rationale**: Production systems must remain available even when the agent fails. Users should receive actionable error messages.
+
+### VI. Configuration Flexibility
+Agent configuration (command, arguments, working directory) MUST be configurable via both config.yaml and environment variables, with environment variables taking precedence.
+
+**Rationale**: Containerized deployments require environment-based configuration. Dynamic overrides enable testing with different agents.
+
+### VII. Testability
+The middleware MUST be designed for automated testing: clear interfaces, mockable ACP connections, and integration test coverage for critical paths.
+
+**Rationale**: Without tests, refactoring becomes risky. Integration tests validate end-to-end protocol translation.
+
+## Technology Standards
+
+**Language**: TypeScript (Node.js 18+)  
+**ACP SDK**: @agentclientprotocol/sdk (latest stable)  
+**HTTP Server**: Fastify 5.x  
+**Configuration**: YAML (js-yaml) + dotenv  
+**Logging**: winston or console + fs (file rotation in /tmp)  
+
+**Required Dependencies**:
+- `@agentclientprotocol/sdk` - ACP protocol implementation
+- `fastify` - HTTP server with SSE support
+- `js-yaml` - YAML config parsing
+- `dotenv` - Environment variable loading
+
+## Development Workflow
+
+**Session Control**:
+- Accept optional `session_id` in chat request
+- If provided: use existing session, return session_id in response
+- If not provided: create new session, return session_id in response
+
+**Log Location**:
+- Console: colored output with timestamps
+- File: `{LOG_DIR}/requests-{date}.log` and `{LOG_DIR}/errors-{date}.log`
+- Default LOG_DIR: `/tmp/acp-middleware`
+
+**Error Format**: OpenAI-compliant JSON:
+```json
+{"error": {"message": "...", "type": "invalid_request_error"}}
+```
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+**Constitution Supremacy**: This constitution supersedes all other development practices unless explicitly amended.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Amendment Procedure**:
+1. Propose change with rationale and impact analysis
+2. Document in project memory
+3. Version bump according to semantic rules:
+   - MAJOR: Remove or redefine core principles
+   - MINOR: Add new principle or expand guidance
+   - PATCH: Clarifications, wording fixes
+4. Update dependent templates
+
+**Compliance Review**: All PRs must verify:
+- Protocol translation correctness
+- Logging sanitization
+- Error handling completeness
+- Session management functionality
+
+**Runtime Guidance**: Use `README.md` for development and deployment instructions.
+
+**Version**: 1.0.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-04-15

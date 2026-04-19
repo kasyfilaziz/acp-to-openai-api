@@ -1,0 +1,20 @@
+{
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "request": {
+    "model": "gpt-4",
+    "messages": [
+      { "role": "user", "content": "Hello" }
+    ],
+    "stream": false,
+    "session_id": "optional-acp-session-id"
+  },
+  "response_200": {
+    "id": "chatcmpl-123",
+    "object": "chat.completion",
+    "choices": [
+      { "message": { "role": "assistant", "content": "Hi!" }, "finish_reason": "stop" }
+    ],
+    "session_id": "acp-session-id-for-reuse"
+  }
+}

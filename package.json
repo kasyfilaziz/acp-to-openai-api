@@ -1,0 +1,48 @@
+{
+  "name": "acp-to-openai-api",
+  "version": "1.0.0",
+  "description": "Middleware that bridges ACP (Agent Client Protocol) agents to OpenAI-compatible API",
+  "main": "dist/index.js",
+  "type": "module",
+  "bin": {
+    "acp-to-openai": "./dist/index.js"
+  },
+  "scripts": {
+    "prepare": "npm run build",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kasyfilaziz/acp-to-openai-api.git"
+  },
+  "keywords": [
+    "acp",
+    "openai",
+    "middleware",
+    "gemini-cli"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kasyfilaziz/acp-to-openai-api/issues"
+  },
+  "homepage": "https://github.com/kasyfilaziz/acp-to-openai-api#readme",
+  "dependencies": {
+    "@agentclientprotocol/sdk": "^0.19.0",
+    "dotenv": "^17.4.2",
+    "fastify": "^5.8.5",
+    "js-yaml": "^4.1.1"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.6.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.4"
+  }
+}
